@@ -1,0 +1,122 @@
+---
+title: "Chapter5solutions"
+author: "Jim Albert"
+date: "January 11, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+#### Exercise 1 (Run Values of Hits)
+
+(a) Use similar R code as described in Section~ref{runvaluebasehit} for the 2016 season data to find the mean run values for a double,  and for a triple.
+
+Here I am reading in the 2016 Retrosheet data which has already computed the runs value for each play.  Double and triple correspond to the events EVENT_CD = 21 and EVENT_CD = 22.
+
+```{r}
+library(tidyverse)
+d2016 <- read_csv("all2016.csv")
+d2016 %>% filter(EVENT_CD == 21) %>% 
+  summarize(M = mean(RUNS.VALUE))
+d2016 %>% filter(EVENT_CD == 22) %>% 
+  summarize(M = mean(RUNS.VALUE))
+```
+
+(b) Albert and Bennett use a regression approach to obtain the weights 0.46, 0.80, 1.02, and 1.40 for a single, double, triple, and home run, respectively.  Compare the results from this chapter
+and part (a) with the weights of Albert and Bennett.
+
+The results compare favorably with the weights of Albert and Bennett.
+
+#### Exercise 2 (Value of Different Ways of Reaching First Base)
+
+There are three different ways for a runner to get on base: a single, walk (BB), or hit-by-pitch (HBP).   But these three outcomes have different run values due to the different advancement of the runners on base.
+Use run values based on data from the 2016 season to compare the benefit of a walk, a hit-by-pitch, and a single when there is a single runner on first base.
+
+Walk, hit-by-pitch, and single correspond to EVENT_CD values of 14, 16, 20.  Below I find the number of outcomes of each type and the corresponding mean runs value.
+
+```{r}
+d2016 %>% filter(EVENT_CD %in% c(14, 16, 20)) %>%
+  group_by(EVENT_CD) %>% 
+  summarize(N = n(),
+            M = mean(RUNS.VALUE))
+```
+
+#### Exercise 3 (Comparing Two Players with Similar OBPs.)
+
+Adam Eaton (Retrosheet batter id eatoa002)  and Starling Marte (Retrosheet batter id marts002) both had  0.362 on-base percentages during the 2016 season.  By exploring the run values of these two payers, investigate which player was really more valuable to his team.  Can you explain the difference in run values in terms of traditional batting statistics such as AVG, SLG, or OBP?
+
+Below we find the number of plate appearances, the mean run value, and the total run value for each player. Adam Eaton seems to be a more valuable hitter.
+
+```{r}
+d2016 %>% filter(BAT_ID %in% c("eatoa002", "marts002"),
+                 BAT_EVENT_FL == TRUE) %>% 
+  group_by(BAT_ID) %>% 
+  summarize(N = n(),
+            M = mean(RUNS.VALUE),
+            S = sum(RUNS.VALUE))
+```
+
+#### Exercise 4 (Create Probability of Scoring a Run Matrix)
+
+In this chapter, we illustrated the construction of the run expectancy matrix from 2016 season data.  Suppose instead that one was interested in computing the proportion of times when at least one run was scored for each of the 24 possible bases/outs situations.  Use R to construct this probability of scoring matrix.
+
+```{r}
+d2016 %>% 
+  filter(Outs.Inning == 3) %>% 
+  group_by(STATE) %>%
+  summarize(P = mean(RUNS.ROI >= 1))  -> PROB
+PROB
+```
+
+
+#### Exercise 5 (Runner Advancement with a Single)
+
+Suppose one is interested in studying how runners move with a single.
+
+(a) Using the filter function, select the plays when a single was hit.  (The value of EVENT_CD for a single is 20.)  Call the new data frame singles.
+
+```{r}
+d2016 %>% 
+  filter(EVENT_CD == 20) -> singles
+```
+
+
+(b) Use the group_by and summarize functions with the data frame singles to construct a table of frequencies of the variables  STATE (the beginning runners/outs state) and  NEW.STATE (the final runners/outs state).
+
+```{r}
+singles %>% group_by(STATE, NEW.STATE) %>% 
+  summarize(N = n()) -> S
+head(S)
+```
+
+
+(c) Suppose there is a single runner on first base.  Using the table from part (b), explore where runners move with a single.  Is it more likely for the lead runner to move to second, or to third base?
+
+```{r}
+S %>% mutate(BASES = substr(STATE, 1, 3),
+             NEW.BASES = substr(NEW.STATE, 1, 3)) %>%  filter(BASES == "100") %>% 
+  group_by(NEW.BASES) %>% 
+  summarize(Freq = sum(N))
+```
+
+
+(d) Suppose instead there are runners on first and second.  Explore where runners move with a single.  Estimate the probability a run is scored on the play.
+
+```{r}
+S %>% mutate(BASES = substr(STATE, 1, 3),
+             NEW.BASES = substr(NEW.STATE, 1, 3)) %>%  filter(BASES == "110") %>% 
+  group_by(NEW.BASES) %>% 
+  summarize(Freq = sum(N))
+```
+
+#### Exercise 6 (Hitting Evaluation of Players by Run Values)
+
+Choose several players who were good hitters in the 2016 season.  
+For each player, find the run values and the runners on base for all plate appearances.  As in the chapter, construct
+a graph of the run values against the runners on base.  Was this particular batter successful when there were runners in scoring position?
+
+

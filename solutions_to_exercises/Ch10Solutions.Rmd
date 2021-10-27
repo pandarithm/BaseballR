@@ -1,0 +1,192 @@
+---
+title: "Ch10Solutions"
+author: "Jim Albert"
+date: "1/31/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+#### Exercise 1: (Ted Williams) 
+
+The data file williams.1941.csv contains Ted Williams  game-to-game hitting data for the 1941 season.  This season was notable in that Williams had a season batting average of .406 (the most recent season batting average exceeding .400).  Read this dataset into R.
+
+```{r}
+library(tidyverse)
+tw <- read_csv("williams.1941.csv")
+```
+
+(a)  Using the R function streaks, find the lengths of all of Williams' hitting streaks during this season.  Compare the lengths of his hitting streaks with those of Joe DiMaggio during this same season.
+
+```{r}
+streaks <- function(y) {
+  x <- rle(y)
+  class(x) <- "list"
+  return(as_tibble(x))
+}
+tw %>% mutate(HIT = ifelse(H > 0, 1, 0)) -> tw
+tw %>% 
+  pull(HIT) %>% 
+  streaks() %>%
+  filter(values == 1) %>%
+  pull(lengths)
+```
+
+
+(b) Use the function streaks to find the lengths of all hitless streaks of Williams during the 1941 season.  Compare these lengths with those of DiMaggio during the 1941 season.
+
+```{r}
+tw %>% 
+  pull(HIT) %>% 
+  streaks() %>%
+  filter(values == 0) %>%
+  pull(lengths)
+```
+
+#### Exercise 2: (Ted Williams, Continued)
+
+(a) Use the R function moving_average to find the moving batting averages of Williams for the 1941 season using a window of 5 games.  Graph these moving averages and describe any hot and cold patterns in Williams hitting during this season.
+
+```{r}
+library(zoo)
+moving_average <- function(df, width) {
+  N <- nrow(df)
+  df %>%
+    transmute(Game = rollmean(1:N, k = width, fill = NA),
+              Average = rollsum(H, width, fill = NA) /
+                        rollsum(AB, width, fill = NA))
+}
+ted_ma <- moving_average(tw, 10)
+ggplot(ted_ma, aes(Game, Average)) +
+  geom_line() +
+  geom_hline(data = summarize(tw, 
+                bavg = sum(H)/sum(AB)), 
+             aes(yintercept = bavg)) +
+  geom_rug(data = filter(tw, HIT == 1),
+           aes(Rk, .3 * HIT), sides = "b")
+```
+
+(b) Compute and graph moving batting averages of Williams using several alternative choices for the window of games.
+
+#### Exercise 3: (Streakiness of the 2008 Lance Berkman)
+
+Lance Berkman had a remarkable hot period of  hitting during the 2008 season.
+
+(a) Download the Retrosheet play-by-play data for the 2008 season, and extract the hitting data for Berkman.
+
+In the current workspace, ```d``` is a data frame containing the 2008 Retrosheet data.  The retro id for Berkman is "berkl001".
+
+```{r}
+d <- read_csv("all2008.csv")
+lb_AB <- filter(d, BAT_ID == "berkl001", AB_FL == TRUE)
+```
+
+
+(b) Using the function streaks, find the lengths of all hitting streaks of Berkman.  What was the length of his longest streak of consecutive hits?
+
+```{r}
+lb_AB %>% 
+  mutate(H = ifelse(H_FL > 0, 1, 0),
+         DATE = str_sub(GAME_ID, 4, 12),
+         AB = 1) %>% 
+  arrange(DATE) -> lb_AB
+lb_AB %>% 
+  pull(H) %>% 
+  streaks() %>%
+  filter(values == 1) %>%
+  pull(lengths)
+```
+
+
+(c) Use the streaks function to find the lengths of all streaks of consecutive outs.  What was Berkman's longest ``ofer" during this season?
+
+```{r}
+lb_AB %>% 
+  pull(H) %>% 
+  streaks() %>%
+  filter(values == 0) %>%
+  pull(lengths)
+```
+
+(d) Construct a moving batting average plot using a window of 20 at-bats.  Comment on the patterns in this graph; was there a period when Berkman was unusually hot?
+
+```{r}
+lb_AB %>% 
+  mutate(AB_Num = row_number()) %>% 
+  filter(H == 1) -> lb.H
+moving_average(lb_AB, 20) %>% 
+  ggplot(aes(Game, Average)) +
+  geom_line() + xlab("AB") +
+  geom_hline(yintercept = mean(lb_AB$H)) +
+  geom_rug(data = lb.H,
+           aes(AB_Num, .3 * H), sides = "b")
+```
+
+
+#### Exercise 4: (Streakiness of the 2008 Lance Berkman, Continued)
+
+(a) Use the method described in the book to see if Berkman's streaky patterns of hits and outs are consistent with patterns from a random model.
+
+First compute the clumpiness measure for Berkman.
+```{r}
+lb_S <- lb_AB %>% 
+  pull(H) %>%
+  streaks() %>% 
+  filter(values == 0) %>% 
+  summarize(C = sum(lengths ^ 2)) %>% 
+  pull()
+lb_S
+```
+
+Then using the ```random_mix``` function, computes 1000 values of the clumpliness function assumning that all random permutations of 0-1 sequence are equally likely.
+
+```{r}
+random_mix <- function(y) {
+  y %>% 
+    sample() %>% 
+    streaks() %>% 
+    filter(values == 0) %>% 
+    summarize(C = sum(lengths ^ 2)) %>% 
+    pull()
+}
+lb_random <- replicate(1000, 
+                           random_mix(lb_AB$H))
+ggplot(data.frame(lb_random), aes(lb_random)) +
+  geom_histogram(aes(y = stat(density)), bins = 20, 
+                 color = "blue", fill = "white") +
+  geom_vline(xintercept = lb_S, size = 2) +
+  annotate(geom = "text", x = lb_S * 1.15,
+           y = 0.0010, label = "OBSERVED", size = 5) 
+```
+
+
+(b) The method of this chapter used the sum of squares of the gaps as a measure of streakiness.  Suppose one uses the longest streak of consecutive outs as an alternative measure.  Rerun the method with this new measure and see if Berkman's longest streak of outs is consistent with the random model.
+
+#### Exercise 5: (Streakiness of All Players During the 2008 Season)
+
+(a) Using the 2008 Retrosheet play-by-play data, extract the hitting data for all players with at least 400 at-bats.
+
+(b) For each player, find the length of the longest streak of consecutive outs.   Find the hitters with the longest streaks and the hitters with shortest streaks.  How does Berkman's longest ``oh-for" compare in the group of longest streaks? 
+
+#### Exercise 6: (Streakiness of All Players During the 2008 Season, Continued)
+
+(a) For each player and each game during the 2008 season, compute the sum of selfindex wOBA weights and the number of plate appearances PA.
+
+(b) For each player with at least 500 PA, compute the wOBA over groups of five games (games 1-5, games 6-10, etc.)  For each player, find the standard deviation of these five-game wOBA, and find the ten most streaky players using this measure.
+
+#### Exercise 7: (The Great Streak)
+
+The Retrosheet website recently added play-by-play data for the 1941 season when Joe DiMaggio achieved his
+56-game hitting streak.
+
+(a) Download the 1941 play by play data from the Retrosheet website.
+
+(b) Confirm that DiMaggio had three ``0 for 12" streaks during the 1941 season.
+
+(c) Use the method described in Section~ref{randomtest} to see if DiMaggio's streaky patterns of hits and outs in individual at-bats are consistent with patterns from a random model.
+
+(d) DiMaggio is perceived to be very streaky due to his game-to-game hitting accomplishment during the 1941 season.  Based on your work, is DiMaggio's pattern of hitting also very streaky on individual at-bats?

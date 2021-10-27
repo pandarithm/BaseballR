@@ -1,0 +1,139 @@
+---
+title: "Ch4Solutions"
+author: "Jim Albert"
+date: "1/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+#### Exercise 1 (Relationship Between Winning Percentage and Run Differential Across Decades)
+
+This chapter used a simple linear model to predict a team's winning percentage based on its run differential.  This model was fit using team data since the 2001 season.  
+
+(a) Refit this linear model using data from the seasons 1961--1970,  the seasons 1971--1980, the seasons 1981--1990, and the seasons 1991--2000.
+
+```{r}
+library(Lahman)
+library(tidyverse)
+Teams %>% filter(yearID >= 1961, yearID <= 2000) %>% 
+     mutate(Era = ifelse(yearID <= 1970, "1961-1970",
+     ifelse(yearID <= 1980, "1971-1980",
+     ifelse(yearID <= 1990, "1981-1990", "1991-2000"))),
+     WinPct = W / (W + L)) ->
+     Eras
+```
+
+```{r}
+one_fit <- function(years){
+  lm(WinPct ~ I(R - RA), 
+     data = filter(Eras, Era == years))
+}
+```
+
+```{r}
+the_eras <- c("1961-1970", "1971-1980", 
+              "1981-1990", "1991-2000")
+four_fits <- lapply(the_eras, one_fit)
+names(four_fits) <- the_eras
+```
+
+```{r}
+sapply(four_fits, coef)
+```
+
+(b) Compare across the five decades the predicted winning percentage for a team with a  run differential of 10 runs.
+
+```{r}
+p10 <- function(fit){
+  predict(fit, data.frame(R = 30, RA = 20))
+}
+sapply(four_fits, p10)
+```
+
+
+#### Exercise 2 (Pythagorean Residuals for Poor and Great Teams in the 19th Century)
+
+As baseball was evolving into its modern form, nineteenth century leagues often featured abysmal teams that did not even succeed in finishing their season, as well as some dominant clubs.
+
+(a) Fit a Pythagorean formula model to the run-differential, win-loss data for teams who played in the 19th century.
+
+```{r}
+library(Lahman)
+library(tidyverse)
+Teams %>% filter(yearID <= 1900) %>% 
+     mutate(WinPct = W / (W + L)) ->
+     D_19th
+```
+
+
+(b) By inspecting the residual plot of your fitted model from (a), did the great and poor teams in the 19th century do better or worse than one would expect on the basis of their run differentials?
+
+Below I construct a graph of the values of R - RA (horizontal) against the residual (vertical).  I color the point by the winning proportion (bad is WinPct < .3 and great is WinPct > .7).  We see some great teams with large positive residuals and bad teams with large negative residuals.  By exploring further, can find the identity of the teams with the large residuals.
+
+```{r}
+fit <- lm(WinPct ~ I(R - RA), data = D_19th)
+fit
+library(broom)
+out <- augment(fit)
+out %>% mutate(type = ifelse(WinPct > .7, "great",
+          ifelse(WinPct < .3, "bad", "other"))) -> out
+ggplot(out, aes(I.R...RA., .resid, color=type)) +
+  geom_point() +
+  geom_hline(yintercept = 0)
+```
+
+#### Exercise 3: (Exploring the Manager Effect in Baseball)
+
+Retrosheet game logs report, for every game played, the managers of both teams.  
+
+(a) Select a period of your choice (encompassing at least ten years) and fit the Pythagorean formula model to the run-differential, win-loss data.
+
+Here I decided to look at the 2001-2010 period.  I fit the Pythagorean formula and store the output in the variable fit.
+
+```{r}
+library(Lahman)
+library(tidyverse)
+library(broom)
+Teams %>% filter(yearID >= 2001, yearID <= 2010) %>% 
+  mutate(WinPct = W / (W + L)) -> d
+fit <- lm(WinPct ~ I(R - RA), data = d)
+```
+
+(b) On the basis of your fit in part (a) and the list of managers, compile a list of the managers who most overperformed their Pythagorean winning percentage and the managers who most underperformed it.
+
+I find the residuals for each team/season.  For each manager, I find the number of seasons coached (in this period) and the average residual.  I arrange the resulting data frame by the value of Mean Residual. The head and tail of this table give the top overperforming and underperforming managers.
+
+```{r}
+out <- augment(fit, data = select(d, yearID, teamID,
+                                  R, RA))
+out %>% inner_join(select(Managers, playerID, yearID,
+                          teamID), 
+                   by = c("yearID", "teamID")) -> out
+out %>% group_by(playerID) %>% 
+  summarize(N = n(), Mean_Residual = mean(.resid)) %>% 
+  arrange(desc(Mean_Residual)) -> out
+head(out)
+tail(out)
+```
+
+
+#### Exercise 4 (Pythagorean Relationship for Other Sports)
+
+Bill James' Pythagorean model has been used for predicting winning percentage in other sports. Since the pattern of scoring is very different among sports (compare for example points in basketball and goals in soccer), the model needs to be adapted to the scoring environment.
+
+Find the necessary data for a sport of your choice and compute the optimal exponent to the Pythagorean formula. (The website www.opensourcesports.com provides databases for NBA and WNBA basketball and for NHL hockey in a format similar to Lahman's baseball database.)
+
+
+
+
+
+
+
+
+
+

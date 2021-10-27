@@ -1,0 +1,211 @@
+---
+title: "Ch8Solutions"
+author: "Jim Albert"
+date: "1/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+#### Exercise 1: Career Trajectory of Willie Mays
+
+(a) Use the get_stats function to extract the hitting data for Willie Mays for all of his seasons in his career.
+
+Read in get_stats function.
+
+```{r}
+get_stats <- function(player.id) {
+  Batting %>% 
+    filter(playerID == player.id) %>%
+    inner_join(Master, by = "playerID") %>%
+    mutate(birthyear = ifelse(birthMonth >= 7,
+                              birthYear + 1, birthYear),
+           Age = yearID - birthyear,
+           SF = ifelse(is.na(SF) == TRUE, 0, SF),
+           SLG = (H - X2B - X3B - HR +
+                    2 * X2B + 3 * X3B + 4 * HR) / AB,
+           OBP = (H + BB + HBP) / (AB + BB + HBP + SF),
+           OPS = SLG + OBP) %>%
+    select(Age, SLG, OBP, OPS)
+}
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+Master %>% filter(nameFirst == "Willie",
+                  nameLast == "Mays") %>% 
+  select(playerID) %>% pull() -> mays_id
+mays_stats <- get_stats(mays_id)
+```
+
+(b) Construct a scatterplot of Mays' OPS season values against his age.
+
+```{r}
+ggplot(mays_stats, aes(Age, OPS)) +
+  geom_point()
+```
+
+(c) Fit a quadratic function to Mays' career trajectory.  Based on this model, estimate Mays' peak age and his estimated largest OPS value based on the fit.
+
+```{r}
+fit <- lm(OPS ~ I(Age - 30) + I((Age  - 30) ^ 2), 
+          data = mays_stats)
+fit$coef
+```
+
+```{r}
+A <- fit$coef[1]
+B <- fit$coef[2]
+C <- fit$coef[3]
+(Peak.Age <- 30 - B / (2 * C))
+(MAX <- A - B ^ 2 / 4 / C)
+```
+
+
+#### Exercise 2: Comparing Trajectories
+
+(a) Using James' similarity score measure (function similar), find the five hitters with hitting statistics most similar to Willie Mays.
+
+```{r}
+vars <- c("G", "AB", "R", "H", "X2B", "X3B", 
+          "HR", "RBI", "BB", "SO", "SB")
+Batting %>% 
+  group_by(playerID) %>% 
+  summarize_at(vars, sum, na.rm = TRUE) -> C.totals
+C.totals %>%
+  mutate(AVG = H / AB,
+         SLG = (H - X2B - X3B - HR + 2 * X2B +
+                    3 * X3B + 4 * HR) / AB) ->
+C.totals
+Fielding %>% 
+  group_by(playerID, POS) %>%
+  summarize(Games = sum(G)) %>% 
+  arrange(playerID, desc(Games)) %>% 
+  filter(POS == first(POS)) -> Positions
+
+C.totals %>%
+  inner_join(Positions, by = "playerID") %>%
+  mutate(Value.POS = case_when(
+    POS == "C" ~ 240,
+    POS == "SS" ~ 168,
+    POS == "2B" ~ 132,
+    POS == "3B" ~ 84,
+    POS == "OF" ~ 48,
+    POS == "1B" ~ 12, 
+    TRUE ~ 0)) -> C.totals
+
+similar <- function(p, number = 10) {
+  C.totals %>% filter(playerID == p) -> P
+  C.totals %>% 
+    mutate(sim_score = 1000 -
+             floor(abs(G - P$G) / 20) -
+             floor(abs(AB - P$AB) / 75) -
+             floor(abs(R - P$R) / 10) -
+             floor(abs(H - P$H) / 15) -
+             floor(abs(X2B - P$X2B) / 5) -
+             floor(abs(X3B - P$X3B) / 4) -
+             floor(abs(HR - P$HR) / 2) -
+             floor(abs(RBI - P$RBI) / 10) -
+             floor(abs(BB - P$BB) / 25) -
+             floor(abs(SO - P$SO) / 150) -
+             floor(abs(SB - P$SB) / 20) - 
+             floor(abs(AVG - P$AVG) / 0.001) - 
+             floor(abs(SLG - P$SLG) / 0.002) -
+             abs(Value.POS - P$Value.POS)) %>%
+    arrange(desc(sim_score)) %>% 
+    head(number)
+}
+s_player <- similar(mays_id, number = 6) %>% 
+  select(playerID) %>% pull()
+s_player
+```
+
+(b) Fit quadratic functions to the (Age, OPS) data for Mays and the five similar hitters.  Display the six fitted trajectories on a single panel.
+
+```{r}
+get_stats2 <- function(playerid){
+  d <- get_stats(playerid)
+  d %>% mutate(Player = playerid)
+}
+map_df(s_player, get_stats2) -> alldata
+ggplot(alldata, aes(Age, OPS)) +
+  geom_point() +
+  geom_smooth(method = "lm",
+               formula = y ~ x + I(x^2),
+              size = 1.5) +
+      facet_wrap(~ Player, ncol = 3)
+```
+
+
+(c) Based on your graph, describe the differences between the six player trajectories.  Which player had the smallest peak age?
+
+#### Exercise 3: Comparing Trajectories of the Career Hits Leaders
+
+(a) Find the batters who have had at least 3200 career hits.
+
+```{r}
+Batting %>% 
+  group_by(playerID) %>% 
+  summarize(H = sum(H)) %>% 
+  filter(H >= 3200) %>% 
+  select(playerID) %>% pull() -> p3200
+p3200
+```
+
+(b) Fit the quadratic functions to the (Age, AVG) data for this group of hitters, where AVG is the batting average.  Display the fitted trajectories on a single panel.
+
+```{r}
+get_stats_new <- function(player.id){
+  Batting %>% 
+    filter(playerID == player.id) %>%
+    inner_join(Master, by = "playerID") %>%
+    mutate(birthyear = ifelse(birthMonth >= 7,
+                              birthYear + 1, birthYear),
+           Age = yearID - birthyear,
+           AVG = H / AB) %>%
+    select(Age, AVG) %>% 
+    mutate(Player = player.id)
+}
+map_df(p3200, get_stats_new) -> alldata
+ggplot(alldata, aes(Age, AVG)) +
+  geom_point() +
+  geom_smooth(method = "lm",
+               formula = y ~ x + I(x^2),
+              size = 1.5) +
+      facet_wrap(~ Player, ncol = 4)
+```
+
+(c) On the basis of your work, which player was the most consistent hitter on average?  Explain how you measured consistency on the basis of the fitted trajectory.
+
+#### Exercise 4: Comparing Trajectories of Home Run Hitters
+
+(a) Find the ten players in baseball history who have had the most career home runs.
+
+(b) Fit the quadratic functions to the home run rates of the ten players, where HR.RATE = HR / AB.  Display the fitted trajectories on a single panel.
+
+(c) On the basis of your work, which player had the highest estimated home run rate at his peak?  Which player among the ten had the smallest peak home run rate?
+
+(d) Do any of the players have unusual career trajectory shapes?  Is there any possible explanation for these unusual shapes?
+
+#### Exercise 5: Peak Ages in the History of Baseball
+
+(a) Find all the players who entered baseball between 1940 and 1945 with at least 2000 career at-bats.
+
+(b) Find all the players who entered baseball between 1970 and 1975 with at least 2000 career at-bats.
+
+(c) By fitting quadratic functions to the (Age, OPS) data, estimate the peak ages for all players in parts (a) and (b).
+
+(d) By comparing the peak ages of the 1940s players with the peak ages of the 1970s players, can you make
+any conclusions about how the peak ages have changed in this 30-year period?
+
+
+
+
+
+
+

@@ -1,0 +1,214 @@
+---
+title: "Chapter 2 Exercises"
+author: "Jim Albert"
+date: "1/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+#### Exercise 1 (Top Base Stealers in the Hall of Fame)
+
+(a) In R, place the stolen base, caught stealing, and game counts in the vectors SB, CS, and G.
+
+```{r}
+SB <-  c(1406, 938, 897, 741, 738, 689, 506, 504, 474)
+CS <- c(335, 307, 212, 195, 109, 162, 136, 131, 114)
+G <- c(3081, 2616, 3034, 2826, 2476, 2649, 2599, 2683, 2379)
+```
+
+
+(b) For all players, compute the number of stolen base attempts SB + CS and store in the vector SB.Attempt.
+
+```{r}
+SB.Attempt <- SB + CS
+```
+
+(c) For all players, compute the success rate Success.Rate = SB / SB.Attempt.
+
+```{r}
+Success.Rate <- round(SB / SB.Attempt, 2)
+```
+
+(d) Compute the number of stolen bases per game SB.Game = SB / Game.
+
+```{r}
+SB.Game <- round(SB / G, 2)
+```
+
+(e) Construct a scatterplot of the stolen bases per game against the success rates.  Are there particular players with unusually high or low stolen base success rates?  Which player had the greatest number of stolen bases per game?
+
+```{r}
+library(tidyverse)
+ggplot(data.frame(SB.Game, Success.Rate),
+       aes(SB.Game, Success.Rate)) +
+  geom_point()
+```
+
+```{r}
+Player = c('Rickey Henderson', 'Lou Brock', 'Ty Cobb',
+           'Eddie Collins', 'Max Carey', 'Joe Morgan',
+           'Luis Aparicio', 'Paul Molitor',
+           'Roberto Alomar')
+df <- tibble(Player, Success.Rate, SB.Game)
+df %>% arrange(desc(Success.Rate)) %>% head(1)
+```
+
+```{r}
+df %>% arrange(Success.Rate) %>% head(1)
+```
+
+```{r}
+df %>% arrange(desc(SB.Game)) %>% select(Player) %>% 
+  slice(1) %>% pull()
+```
+
+#### Exercise 2  (Character, Factor, and Logical Variables in R)
+
+(a) Use the c() function to collect these outcomes in a character vector outcomes.
+
+```{r}
+outcomes <- c('Single', 'Out', 'Out', 'Single', 'Out', 
+             'Double', 'Out', 'Walk', 'Out', 'Single')
+```
+
+(b) Use the table function to construct a frequency table of outcomes.
+
+```{r}
+table(outcomes)
+```
+
+(c) In tabulating these results, suppose one prefers the results to be ordered from least-successful to most-successful.  Use the table function to tabulate the values in f.outcomes.  How does the output differ from what you saw in part (b)?
+
+```{r}
+f.outcomes = factor(outcomes, 
+          levels = c('Out', 'Walk', 'Single', 'Double'))
+table(f.outcomes)
+```
+
+(d) Suppose you want to focus only on the walks in the plate appearances.  Describe what is done in each of the
+following statements.
+
+```{r}
+outcomes == "Walk"
+sum(outcomes == "Walk")
+```
+
+#### Exercise 3 (Pitchers in the 350-Wins Club)
+
+(a) In R, place the wins and losses in the vectors W and L,
+respectively.  Also, create a character vector Name containing the last names of these pitchers.
+
+```{r}
+W <- c(373, 354, 364, 417, 355, 373, 361, 363, 511)
+L <- c(208, 184, 310, 279, 227, 188, 208, 245, 316)
+Name <- c('Alexander', 'Clemens', 'Galvin', 'Johnson',
+          'Maddux', 'Mathewson', 'Nichols', 'Spahn',
+          'Young')
+```
+
+(b) Compute the winning percentage for all pitchers defined by 100 x W / (W + L) and 
+put these winning percentages in the vector Win.PCT.
+
+```{r}
+Win.PCT = round(100 * W / (W + L), 2)
+```
+
+(c) By use of the command
+
+```{r}
+Wins.350 <- data.frame(Name, W, L, Win.PCT)
+```
+
+create a data frame Wins.350 containing the names, wins, losses, and winning percentages.
+
+(d) By use of the arrange function, sort the data frame Wins.350 by winning percentage.  Among these pitchers, who had the largest and smallest winning percentages?
+
+```{r}
+Wins.350 %>%  arrange(desc(Win.PCT)) -> Wins.350
+head(Wins.350, 1)
+tail(Wins.350, 1)
+```
+
+#### Exercise 4 (Pitchers in the 350-Wins Club, Continued)
+
+(a) In R, place the strikeout and walk totals from the 350 win pitchers in the vectors SO and BB,
+respectively.  Also, create a character vector Name containing the last names of these pitchers.
+
+```{r}
+SO <- c(2198, 4672, 1806, 3509, 3371, 2502, 
+        1868, 2583, 2803)
+BB <- c(951, 1580, 745, 1363, 999, 844, 
+        1268, 1434, 1217)
+Name <- c('Alexander', 'Clemens', 'Galvin', 'Johnson',
+          'Maddux', 'Mathewson', 'Nichols', 'Spahn',
+          'Young')
+```
+
+(b) Compute the strikeout-walk ratio by SO / BB and 
+put these ratios in the vector SO.BB.Ratio.
+
+```{r}
+SO.BB.Ratio <- round(SO / BB, 2)
+```
+
+(c) By use of the command
+
+```{r}
+SO.BB <- data.frame(Name, SO, BB, SO.BB.Ratio)
+```
+
+create a data frame SO.BB containing the names, strikeouts, walks, and strikeout-walk ratios.
+
+(d) By use of the filter function, find the pitchers who had a strikeout-walk ratio exceeding 2.8.
+
+```{r}
+SO.BB %>% filter(SO.BB.Ratio > 2.8)
+```
+
+(e) By use of the arrange function, sort the data frame by the number of walks.  Did the pitcher with the largest number of walks have a high or low strikeout-walk ratio?
+
+```{r}
+SO.BB %>% arrange(desc(BB))
+```
+
+#### Exercise 5 (Pitcher Strikeout/Walk Ratios)
+
+(a) Read the Lahman Pitching data into R.
+
+(b) The following script computes the cumulative strikeouts, cumulative walks,
+mid career year, and the total innings pitched (measured in terms of outs) for all pitchers in the data file.
+
+```{r}
+library(Lahman)
+career.pitching <- Pitching %>% 
+  group_by(playerID) %>% 
+  summarize(SO = sum(SO, na.rm = TRUE),
+            BB = sum(BB, na.rm = TRUE),
+            IPouts = sum(IPouts, na.rm = TRUE),
+            midYear = median(yearID, na.rm = TRUE)) 
+```
+
+Use the inner_join function to merge the Pitching and career.pitching data frames.
+
+**NOTE: The inner_join function is not needed here.**
+
+(b) Use the filter function to construct a new data frame career.10000 consisting of data for only those pitchers with at least 10,000 career IPouts.
+
+```{r}
+career.pitching %>% filter(IPouts >= 10000) ->
+  career_10000
+```
+
+
+(c) For the pitchers with at least 10,000 career IPouts, construct a scatterplot of mid career year and ratio of strikeouts to walks.  Comment on the general pattern in this scatterplot.
+
+```{r}
+ggplot(career_10000, aes(midYear, SO / BB)) +
+  geom_point()
+```
+
